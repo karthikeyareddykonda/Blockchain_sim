@@ -1,23 +1,61 @@
-#include<bits/stdc++.h>
 #include "classes.cpp"
+#include <random>
 
-using namespace std;
+bool operator<(const event& a ,const event& b){
 
-void make_graph(Node network[]){
+
+    return a.time >  b.time ;   // gives min priority queue
     
 }
 
-int main() {
-    //Reading input for number of nodes
-    int n; cin >> n;
-    int slow_percentage; cin >> slow_percentage;
+double poisson(double mean,double uni){
+    return -mean*log(1-uni);
+}
 
-    Node* network = new Node[n];
 
-    for(int i = 0; i < n;i++){
-        network[i] = Node();
+int main(){
+
+    //cout << "okay" << endl;
+
+
+    int n = 50 ; float z = 50 ;
+
+    vector<Node> peers ;
+    for(int i =0;i<n;i++){
+
+        peers.push_back(Node(i));
+        // should take care of being slow or fast
+
     }
 
-    make_graph(network);
+
+    srand(time(0));
+
+//-------------- sample for poisson random variable generation -------------
+
+    default_random_engine generator(rand());
+    uniform_real_distribution<double> uniform(0.0,1.0);
     
+
+    
+    double uni = uniform(generator);
+    cout << "uniform : " <<  uni << " poisson : " << poisson(5 , uni) <<  endl;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }

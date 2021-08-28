@@ -83,7 +83,6 @@ public :
 
 };
 
-
 class Block{
 
 public:
@@ -114,6 +113,7 @@ public:
 
 
 };
+
 
 class Block_node{
 
@@ -176,8 +176,6 @@ public:
 };
 
 
-
-
 class Txn{
 
 public:
@@ -212,24 +210,25 @@ public:
 
 
 
+
+
 class event{
 
 
+    public :
     int type; // type of event, send to peer, recieve, 
     double time ; // the time at which event to be happened
 
     // possible extra information regarding event, sender reciever, txn, block
 
-    public :
+    
 
-    // constructor 
-
-
-
-    // should also implement the comparator, for priority queue
-
-
-
-
+    // constructor
+    event(int req_type, double t){
+        type = req_type;
+        time = t;
+    } 
+    
+    // comparator in the main file itself
 
 };
