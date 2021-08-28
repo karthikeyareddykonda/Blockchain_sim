@@ -2,39 +2,82 @@
 
 using namespace std;
 
-
+#define MAX_BLOCK_SIZE 1024
 
 
 class Node{
 
-    int id ;
+    int id;
     int coins ; //   no of bitcoins owned so far 
+    bool heavy;
 
-    vector<Node> peers;
+    vector<Node*> peers;
     vector<double> latency;
 
+    queue<Txn> transaction_pool;
+    Block_node* genesis_block;
+    Block_node* latest_block; // last block of the current longest chain
 
-    public :
-    Node (int new_id, int bcoin=0){
+    priority_queue<pair<string,int>>* event_queue; // To be assigned value in the contructor
+    unordered_set<uint32_t> received_blocks;
+
+
+public :
+
+    Node (int new_id, int bcoin = 0){
+        // Assigning address as id
         id = new_id;
         coins = bcoin;
     }
 
-    // Txn  validity checker function
+    // Method to generate new block from existing pool of transactions
+    Block generate_block(){
+        Block new_block = Block(latest_block->id, id);
+    
+        int size=1;
 
-    bool Txn_check(Txn transaction){
+        while(!transaction_pool.empty()){
+            Txn txn = transaction_pool.front();
+            transaction_pool.pop();
+            size+=1;
+            new_block.transactions.push_back(txn.to_string());
 
-        return true;
+            if(size + 1 > MAX_BLOCK_SIZE){
+                break;
+            }
+        }
 
-    } 
+        return new_block;
+    }
 
-    // Block chain tree, should be with genysys block in the begining
+    // broadcast function // should be loopless
+    // PLAN: set up recieve events for peers (based on latency etc), they will do the same when they recieve the block, every block first checks whether the block has already been "recieved" (visited in the bfs)
+    bool broadcast_block(){
+        
+    }
 
+    //Recieve block returns a bool representing success or failure
+    bool receive_block(Block &new_block){
+        if(received_blocks.find(new_block.id) != received_blocks.end()){
+            return true;
+        }
+        else{
+            received_blocks.insert(new_block.id);
+        }
 
+        Block_node* parent_node = genesis_block->find(new_block.parent_id);
+        if(parent_node == NULL){
+            cout << "BLOCK WITH PARENT ID DOES'NT EXIST\n";
+            return false;
+        }
 
-
-    //broadcast function // should be loopless
-
+        // Verification in add_child
+        bool status  = parent_node->add_child(&new_block);
+        if(status){
+            // transmits the block to peers (pushes respective recieve events in the event_queue)
+        }
+        return status;
+    }
 
 
 
@@ -43,109 +86,126 @@ class Node{
 
 class Block{
 
-    int block id;
+public:
 
-    vector<Txn> transactions ; 
+    uint32_t id;
 
-    int prev_hash;
+    vector<string> transactions; 
 
+    vector<int> balances;
 
-    public :
+    uint32_t parent_id;
 
 
     // constructor
+    Block(uint32_t parent_id, int miner_id){
+
+        // Assigning address as id
+        uint32_t new_id = reinterpret_cast<uint32_t>(this);
+        id = new_id;
+        this->parent_id = parent_id;
+
+        // Adding coinbase transaction
+        Txn coinbase = Txn(-1, miner_id, 50, true);
+
+    }
 
 
-
-
-    // Merkel tree maintaining
 
 
 };
 
 class Block_node{
 
-    Block root ;
+public:
 
-    vector<Block> children;
+    uint32_t id;
+    vector<string> transactions; 
+    vector<int> balances;
+    vector<Block_node*> children;
+    int length;         // distance from the genesis block_node
+
+    //TODO
     vector<int> counts;  //  to track the family tree counts , should use dfs/bfs
 
-    int long_ind;   // the index of children involving longest path
-    public:
-
     // constructor
+    Block_node(int id, int length, vector<string> transactions, vector<int> balances){
+        this->id = id;
+        this->length = length;
+        this->transactions = transactions;
+        this->balances = balances;
+    }
 
+    // adding of child (returns bool to indicate success)
+    bool add_child(Block* new_block){
 
+        // Verifying transactions with current balances
+        vector<int> temp_balances(balances);
 
-    // adding of child
+        for(string txn_string: new_block->transactions){
+            Txn txn = Txn(txn_string);
+            temp_balances[txn.sender_id] -= txn.amount;
+            if(temp_balances[txn.sender_id] < 0){
+                return false;
+            }
+        }
+
+        // Verification successful, making a new Block_node to add in the tree
+        Block_node* new_block_node = new Block_node(new_block->id, this->length+1, new_block->transactions, temp_balances);
+        children.push_back(new_block_node);
+
+        return true;
+    }
+
+    Block_node* find(int block_id){
+        if(id == block_id){
+            return this;
+        }
+        else{
+            Block_node* result = NULL;
+            for(Block_node* block: children){
+                result = block->find(id);
+
+                if(result != NULL) return result;
+            }
+
+            return result;
+        }
+    }
 
 };
-
-
-class Block_chain{
-
-
-    
-    Block_node root;
-
-    Block_node last_child ; // the child of longest chain. easy to start mining
-
-    public :
-
-    Block_chain (){
-        // start with genesys block node
-    }
-
-
-    void print(){
-        // should either print to terminal or 
-
-
-    }
-
-    void add(){
-
-        // should take care of updating the longest chain, and also the last child
-        // should do the check of hash matching, if not, then trace the entire tree for the matching and add as a child there
-
-
-    }
-
-
-
-}
-
-
-
-
-
 
 
 
 
 class Txn{
 
+public:
 
     string s;
     int sender_id;
     int receiver_id;
-    double coins_inp,coins_out;
-    double mining_fee ;
-    public :Block root ;
+    double amount;
+    bool coinbase;
 
-    vector<Block> children;by Nodes themselves
-    Txn (string ts, int sid,int rid,double inp_coins,double out_coins){
-        s = ts;
+    vector<Block> children;
+
+    Txn (int sid,int rid,double trans_amount, bool coinbase = false){
         sender_id = sid;
         receiver_id = rid;
-        coins_inp = inp_coins;
-        coins_out = out_coins;
-        mining_fee = inp_coins - out_coins;
+        amount = trans_amount;
+        this->coinbase = coinbase;
+
+        //generate appropriate string and store in s (separate cases for with and without coinbase)
     }
 
+    Txn (string s){
+        // parse the string etc
+    }
 
-
-
+    string to_string(){
+        return s;
+    }
 
 
 };
