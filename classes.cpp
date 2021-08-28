@@ -3,51 +3,38 @@
 using namespace std;
 
 
+class Txn{
 
 
-class Node{
-
-    int id ;
-    int coins ; //   no of bitcoins owned so far 
-
-    vector<Node> peers;
-    vector<double> latency;
-
-
+    string s;
+    int sender_id;
+    int receiver_id;
+    double coins_inp,coins_out;
+    double mining_fee ;
     public :
-    Node (int new_id, int bcoin=0){
-        id = new_id;
-        coins = bcoin;
+    Txn (string ts, int sid,int rid,double inp_coins,double out_coins){
+        s = ts;
+        sender_id = sid;
+        receiver_id = rid;
+        coins_inp = inp_coins;
+        coins_out = out_coins;
+        mining_fee = inp_coins - out_coins;
     }
 
-    // Txn  validity checker function
 
-    bool Txn_check(Txn transaction){
-
-        return true;
-
-    } 
-
-    // Block chain tree, should be with genysys block in the begining
-
-
-
-
-    //broadcast function // should be loopless
 
 
 
 
 };
 
-
 class Block{
 
-    int block id;
+    int block_id;
 
     vector<Txn> transactions ; 
 
-    int prev_hash;
+    int prev_block_id;
 
 
     public :
@@ -62,7 +49,6 @@ class Block{
 
 
 };
-
 class Block_node{
 
     Block root ;
@@ -94,56 +80,65 @@ class Block_chain{
 
     Block_chain (){
         // start with genesys block node
+        return ;
     }
 
 
     void print(){
         // should either print to terminal or 
 
-
+        return ;
     }
 
     void add(){
 
         // should take care of updating the longest chain, and also the last child
         // should do the check of hash matching, if not, then trace the entire tree for the matching and add as a child there
-
+        return ;
 
     }
 
 
 
-}
+};
 
 
 
+class Node{
+
+    int id ;
+    int coins ; //   no of bitcoins owned so far 
+    int type ;   // whether slow or fast
+    vector<Node> peers;
+    vector<double> latency;
 
 
-
-
-
-
-class Txn{
-
-
-    string s;
-    int sender_id;
-    int receiver_id;
-    double coins_inp,coins_out;
-    double mining_fee ;
-    public :Block root ;
-
-    vector<Block> children;by Nodes themselves
-    Txn (string ts, int sid,int rid,double inp_coins,double out_coins){
-        s = ts;
-        sender_id = sid;
-        receiver_id = rid;
-        coins_inp = inp_coins;
-        coins_out = out_coins;
-        mining_fee = inp_coins - out_coins;
+    public :
+    Node (int new_id, int selftype=0,int bcoin=0){
+        id = new_id;
+        coins = bcoin;
+        type = selftype;
     }
 
+    // Txn  validity checker function
 
+    bool Txn_check(Txn & transaction){
+
+        return true;
+
+    } 
+
+    // Block chain tree, should be with genysys block in the begining
+
+
+
+
+    //broadcast function // should be loopless
+
+
+    // handler for recieving and sending blocks
+
+    // handler should also return new events to be added in some format
 
 
 
@@ -152,21 +147,30 @@ class Txn{
 
 
 
+
+
 class event{
 
 
+    public :
     int type; // type of event, send to peer, recieve, 
     double time ; // the time at which event to be happened
 
     // possible extra information regarding event, sender reciever, txn, block
 
-    public :
+    
 
-    // constructor 
+    // constructor
+    event(int req_type, double t){
+        type = req_type;
+        time = t;
+    } 
 
 
 
-    // should also implement the comparator, for priority queue
+    // comparator in the main file itself
+
+
 
 
 
