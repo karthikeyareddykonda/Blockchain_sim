@@ -1,0 +1,20 @@
+//------------ event queue testing , comment the following event lines ------------
+
+/*
+    event x(0,0.5) , y(1,0.1), z(2,1.5);
+
+    priority_queue<event> pq ;
+
+    pq.push(x);  pq.push(y); pq.push(z);
+
+    while(!pq.empty()){
+
+        event cur = pq.top();
+        pq.pop();
+
+        cout << cur.time << endl;
+
+
+    }
+*/
+// ----- end of event queue test ------------------ 
