@@ -25,11 +25,20 @@ public:
 
     Txn (string s){
         // parse the string etc
+        sender_id = -1;
+    }
+
+    // empty constructor, required for passing into other class constructor
+    Txn (){
+
+        sender_id = -1 ;
     }
 
     string to_string(){
         return s;
     }
+
+
 
 
 };
@@ -47,7 +56,7 @@ public:
     uint32_t parent_id;
 
 
-    // constructor
+    // normal block constructor
     Block(uint32_t parent_id, int miner_id){
 
         // Assigning address as id
@@ -59,6 +68,17 @@ public:
         Txn coinbase = Txn(-1, miner_id, 50, true);
 
     }
+
+    // default constructor, should be genysys block
+
+    Block(){
+        parent_id = -1 ;
+        id = 0;
+    }
+
+
+
+
 
 };
 
@@ -170,10 +190,10 @@ public :
         return new_block;
     }
 
-    // broadcast function // should be loopless
+    // broadcast function // should be loopless // should also check validity // should also return information for future events
     // PLAN: set up recieve events for peers (based on latency etc), they will do the same when they recieve the block, every block first checks whether the block has already been "recieved" (visited in the bfs)
     bool broadcast_block(){
-        
+        return true ;
     }
 
     //Recieve block returns a bool representing success or failure
@@ -220,16 +240,24 @@ class event{
     public :
     int type; // type of event, send to peer, recieve, 
     double time ; // the time at which event to be happened
-
+    Txn trans;
+    Block B ;
     // possible extra information regarding event, sender reciever, txn, block
 
     
 
     // constructor
-    event(int req_type, double t){
-        type = req_type;
-        time = t;
-    } 
+
+    // the recieving txn constructor, node should trigger check and broadcast
+    event (Txn tn, double at_time){
+        trans = tn ;
+        time = at_time ;
+    }
+
+    event (Block cur_block, double at_time){
+        B = cur_block ;
+        time = at_time;
+    }
 
     // comparator in the main file itself
 
