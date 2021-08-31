@@ -61,6 +61,7 @@ public:
 
         // Assigning address as id
         int new_id = rand()%INT_MAX;
+        cout << "block created id : " << new_id << endl;
         id = new_id;
         this->parent_id = parent_id;
 
@@ -143,6 +144,49 @@ public:
 
 };
 
+class event{
+
+
+    public :
+    int type; // type of event, block recieve or txn recieve 
+    double time ; // the time at which event to be happened
+    Txn trans;
+    Block B ;
+    int sender_id;
+    int receiver_id ;
+    // possible extra information regarding event, sender reciever, txn, block
+    // here sender is the network sender , not the one in txn
+    
+
+    // constructor
+
+    // the recieving txn constructor, node should trigger check and broadcast
+    event (Txn tn,int sid, int rid ,double at_time){
+        trans = tn ;
+        time = at_time ;
+        type = 0;
+        sender_id = sid ;
+        receiver_id = rid ;
+    }
+
+    event (Block cur_block,int sid,int rid, double at_time){
+        B = cur_block ;
+        time = at_time;
+        sender_id = sid ;
+        receiver_id = rid ;
+        type = 1;
+    }
+
+    // comparator in the main file itself
+
+};
+
+bool operator<(const event& a ,const event& b){
+
+
+    return a.time >  b.time ;   // gives min priority queue
+    
+}
 
 
 class Node{
@@ -150,11 +194,12 @@ class Node{
 public :
 
     int id;
-    int coins ; //   no of bitcoins owned so far 
+    int coins ; //   no of bitcoins owned so far                                      // konda : no of bitcoins should be double
     bool slow;
 
     vector<Node*> peers;
     vector<double> latency;
+
 
     queue<Txn> transaction_pool;
     Block_node* genesis_block;
@@ -191,7 +236,7 @@ public :
     }
 
     // broadcast function // should be loopless // should also check validity // should also return information for future events
-    // PLAN: set up recieve events for peers (based on latency etc), they will do the same when they recieve the block, every block first checks whether the block has already been "recieved" (visited in the bfs)
+    // PLAN: set up recieve events for peers (based on latency etc), they will do the same when they recieve the block, every node first checks whether the block has already been "recieved" (visited in the bfs)
     bool broadcast_block(){
         return true ;
     }
@@ -230,35 +275,64 @@ public :
 
 
 
+
+
+    void event_handler(priority_queue<event> & pq,event & cur,double at_time){
+
+       
+        // konda : this function is called by the reciever
+
+        if ( this->id != cur.receiver_id){
+            cout << "event handler called by wrong peer node" << endl;
+            return;
+        }
+
+        // konda : should perform txn check or block check based on type
+
+        // konda : should check whether the block or txn already recieved by thisnode itself
+        // konda : in short, every unique block should be forwarded only once. May recieve the same block from many other peers!
+        // konda : better cache few distinct recently heard blocks
+
+
+        if (cur.type == 1){
+            // the block event 
+
+            if(received_blocks.find(cur.B.id) != received_blocks.end()) return ;
+
+            else{
+               // cout << " from node id : " << this->id << " recvd " << cur.B.id;  
+                received_blocks.insert(cur.B.id);
+                int sid = cur.sender_id ;
+
+                for(int i = 0;i<peers.size();i++){
+
+                    if(peers[i]->id != sid){
+                        //konda :  here ideally should decide the future time based on link latency 
+                        event future_event(cur.B,this->id,peers[i]->id,at_time+10);
+                        pq.push(future_event);
+                    }
+
+
+                }
+
+
+
+            }
+
+        }
+
+
+        
+
+
+
+
+    }
+
+
+
 };
 
 
 
-class event{
 
-
-    public :
-    int type; // type of event, send to peer, recieve, 
-    double time ; // the time at which event to be happened
-    Txn trans;
-    Block B ;
-    // possible extra information regarding event, sender reciever, txn, block
-
-    
-
-    // constructor
-
-    // the recieving txn constructor, node should trigger check and broadcast
-    event (Txn tn, double at_time){
-        trans = tn ;
-        time = at_time ;
-    }
-
-    event (Block cur_block, double at_time){
-        B = cur_block ;
-        time = at_time;
-    }
-
-    // comparator in the main file itself
-
-};
