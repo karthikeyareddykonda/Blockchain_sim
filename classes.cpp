@@ -9,29 +9,84 @@ class Txn{
 public:
 
     string s;
+    int txn_id;
     int sender_id;
     int receiver_id;
     double amount;
     bool coinbase;
 
     Txn (int sid,int rid,double trans_amount, bool coinbase = false){
+        txn_id = rand()%INT_MAX+1;
+        cout << "Transaction created id: " << txn_id << endl;
+
         sender_id = sid;
         receiver_id = rid;
         amount = trans_amount;
         this->coinbase = coinbase;
+       
+        //generating appropriate string and store in s (separate case for coinbase)
 
-        //generate appropriate string and store in s (separate cases for with and without coinbase)
+        if(coinbase){
+            s += std::to_string(txn_id);
+            s += ":";
+            s += std::to_string(receiver_id);
+            s += " mines 50 coins";
+        }
+        else{
+            s += std::to_string(txn_id);
+            s += ": ";
+            s += std::to_string(sender_id);
+            s += " pays ";
+            s += std::to_string(receiver_id);
+            s += " ";
+            s += std::to_string(amount);
+            s += " coins";
+        }
+
     }
 
-    Txn (string s){
+    Txn (string str){
+        s = str;
+
         // parse the string etc
-        sender_id = -1;
+        if(str.find("mines") != string::npos){
+            // coinbase transaction
+            
+            sender_id = -1;
+            amount = 50;
+            coinbase = true;
+
+            int ind = str.find(':');
+            txn_id = stoi(str.substr(0,ind));
+
+            receiver_id = stoi(str.substr(ind+1,-1));
+        }
+        else{
+            // normal transaction
+
+            int ind = str.find(':');
+            txn_id = stoi(str.substr(0,ind));
+
+            ind = str.find(' ');
+            sender_id = stoi(str.substr(ind+1,-1));
+            
+            ind = str.find(' ', ind+1);
+            ind = str.find(' ', ind+1);
+            receiver_id = stoi(str.substr(ind+1,-1));
+
+            ind = str.find(' ', ind+1);
+            amount = stoi(str.substr(ind+1,-1));
+            
+            coinbase =  false;
+
+        }
+
     }
 
-    // empty constructor, required for passing into other class constructor
-    Txn (){
+    //default constructor (dummy functionality to prevent error in event class)
 
-        sender_id = -1 ;
+    Txn () {
+        sender_id = -1;
     }
 
     string to_string(){
@@ -47,30 +102,31 @@ class Block{
 
 public:
 
-    uint32_t id;
+    int id;
+    int parent_id;
 
     vector<string> transactions; 
-
     vector<int> balances;
 
-    uint32_t parent_id;
 
 
     // normal block constructor
-    Block(uint32_t parent_id, int miner_id){
-
-        // Assigning address as id
-        int new_id = rand()%INT_MAX;
+    Block(int parent_id, int miner_id, int num_nodes){
+        int new_id = rand()%INT_MAX+1;
         cout << "block created id : " << new_id << endl;
+        
         id = new_id;
         this->parent_id = parent_id;
 
         // Adding coinbase transaction
         Txn coinbase = Txn(-1, miner_id, 50, true);
+        transactions.push_back(coinbase.to_string());
+
+        balances = vector<int>(num_nodes,0);
 
     }
 
-    // default constructor, should be genysys block
+    // default constructor
 
     Block(){
         parent_id = -1 ;
@@ -88,11 +144,12 @@ class Block_node{
 
 public:
 
-    uint32_t id;
+    int id;
+    int length;         // distance from the genesis block_node
+
     vector<string> transactions; 
     vector<int> balances;
     vector<Block_node*> children;
-    int length;         // distance from the genesis block_node
 
     //TODO
     vector<int> counts;  //  to track the family tree counts , should use dfs/bfs
@@ -113,6 +170,9 @@ public:
 
         for(string txn_string: new_block->transactions){
             Txn txn = Txn(txn_string);
+
+            if(txn.coinbase) continue;
+
             temp_balances[txn.sender_id] -= txn.amount;
             if(temp_balances[txn.sender_id] < 0){
                 return NULL;
@@ -194,40 +254,41 @@ class Node{
 public :
 
     int id;
-    int coins ; //   no of bitcoins owned so far                                      // konda : no of bitcoins should be double
+    int coins ; // no of bitcoins owned so far                                      // konda : no of bitcoins should be double
     bool slow;
+    int num_nodes; // no. of nodes in the network
 
     vector<Node*> peers;
     vector<double> latency;
 
 
-    queue<Txn> transaction_pool;
+    queue<string> transaction_pool;
     Block_node* genesis_block;
     Block_node* latest_block; // last block of the current longest chain
 
-    priority_queue<pair<string,int>>* event_queue; // To be assigned value in the contructor
-    unordered_set<uint32_t> received_blocks;
+    unordered_set<int> received_blocks;
 
-    Node (int new_id, bool is_slow, int bcoin = 0){
-        // Assigning address as id
+    Node (int new_id, bool is_slow, Block genesis, int n_nodes, int bcoin = 0){
         id = new_id;
         coins = bcoin;
         slow = is_slow;
+        num_nodes = n_nodes;
+        genesis_block = new Block_node(genesis.id, 0, genesis.transactions, genesis.balances);
     }
 
     // Method to generate new block from existing pool of transactions
     Block generate_block(){
-        Block new_block = Block(latest_block->id, id);
+        Block new_block = Block(latest_block->id, id, num_nodes);
     
         int size=1;
 
         while(!transaction_pool.empty()){
-            Txn txn = transaction_pool.front();
+            Txn txn = Txn(transaction_pool.front());
             transaction_pool.pop();
             size+=1;
             new_block.transactions.push_back(txn.to_string());
 
-            if(size + 1 > MAX_BLOCK_SIZE){
+            if(size == MAX_BLOCK_SIZE){
                 break;
             }
         }
@@ -235,10 +296,18 @@ public :
         return new_block;
     }
 
+    Txn generate_transaction(){
+        int receiver = rand()%num_nodes;
+        int amount = rand()%(latest_block->balances[id] + 1);
+        Txn new_txn = Txn(id, receiver, amount);
+
+        return new_txn;
+    }
+
     // broadcast function // should be loopless // should also check validity // should also return information for future events
     // PLAN: set up recieve events for peers (based on latency etc), they will do the same when they recieve the block, every node first checks whether the block has already been "recieved" (visited in the bfs)
     bool broadcast_block(){
-        return true ;
+        return true;
     }
 
     //Recieve block returns a bool representing success or failure
@@ -265,15 +334,44 @@ public :
                 latest_block = new_block_node;
             }
 
-            // transmits the block to peers (pushes respective recieve events in the event_queue)
-
-
             return true;
         }
         return false;
     }
 
+    void propagate_block(priority_queue<event> & pq, int sid, Block &block, double at_time){
 
+        for(int i = 0;i<peers.size();i++){
+
+            if(peers[i]->id != sid){
+                //konda :  here ideally should decide the future time based on link latency 
+                event future_event(block,this->id,peers[i]->id,at_time+10);
+                pq.push(future_event);
+            }
+
+        }
+
+    }
+
+    bool receive_transaction(Txn txn){
+        if(latest_block->balances[txn.sender_id] >= txn.amount){
+            transaction_pool.push(txn.to_string());
+            return true;
+        }
+        return false;
+    }
+
+    void propagate_transaction(priority_queue<event> & pq, int sid, Txn txn, double at_time){
+        for(int i = 0;i<peers.size();i++){
+
+            if(peers[i]->id != sid){
+                //konda :  here ideally should decide the future time based on link latency 
+                event future_event(txn,this->id,peers[i]->id,at_time+10);
+                pq.push(future_event);
+            }
+
+        }
+    }
 
 
 
@@ -282,7 +380,7 @@ public :
        
         // konda : this function is called by the reciever
 
-        if ( this->id != cur.receiver_id){
+        if (this->id != cur.receiver_id){
             cout << "event handler called by wrong peer node" << endl;
             return;
         }
@@ -295,29 +393,37 @@ public :
 
 
         if (cur.type == 1){
-            // the block event 
+            //receive block event
 
-            if(received_blocks.find(cur.B.id) != received_blocks.end()) return ;
-
-            else{
-               // cout << " from node id : " << this->id << " recvd " << cur.B.id;  
-                received_blocks.insert(cur.B.id);
-                int sid = cur.sender_id ;
-
-                for(int i = 0;i<peers.size();i++){
-
-                    if(peers[i]->id != sid){
-                        //konda :  here ideally should decide the future time based on link latency 
-                        event future_event(cur.B,this->id,peers[i]->id,at_time+10);
-                        pq.push(future_event);
-                    }
-
-
-                }
-
-
-
+            if(receive_block(cur.B)){
+                //Forwarding to peers after receiving
+                propagate_block(pq, cur.sender_id, cur.B, at_time);
             }
+            else{
+                cout << "ERROR: faulty block, Message by Node number: " << this->id << endl;
+            }
+        }
+        else if(cur.type == 2){
+            //generate block event
+            Block new_block = generate_block();
+
+            propagate_block(pq, -1, new_block, at_time);
+        }
+        else if(cur.type == 3){
+            //Transaction forwarding
+
+            if(receive_transaction(cur.trans)){
+                propagate_transaction(pq, cur.sender_id,cur.trans, at_time);
+            }
+            else{
+                cout << "Faulty transaction: " << cur.trans.to_string() << " Message by Node number: " << this->id << endl; 
+            }
+        }
+        else if(cur.type == 4){
+            // generate transaction
+            Txn new_txn = generate_transaction();
+
+            propagate_transaction(pq, -1, new_txn, at_time);
 
         }
 

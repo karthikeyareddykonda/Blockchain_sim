@@ -2,12 +2,12 @@
 #include <random>
 #include<bits/stdc++.h>
 
-bool operator<(const event& a ,const event& b){
+// bool operator<(const event& a ,const event& b){
 
 
-    return a.time >  b.time ;   // gives min priority queue
+//     return a.time >  b.time ;   // gives min priority queue
     
-}
+// }
 
 struct hash_pair {
     template <class T1, class T2>
@@ -95,8 +95,9 @@ int main(){
     random_shuffle(is_slow.begin(), is_slow.end());
 
     vector<Node> network;
+    Block genesis = Block(-1,-1,n);
     for(int i=0;i<n;i++){
-        network.push_back(Node(i, is_slow[i]));
+        network.push_back(Node(i, is_slow[i], genesis, n));
     }
 
     make_graph(network);

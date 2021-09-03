@@ -44,19 +44,18 @@
     pq.push(first);
     pq.push(ev2);
 
-    while(clock < 100 && !pq.empty()){
+    while(clock < 10000 && !pq.empty()){
        // cout << "clock : " << clock << endl;
         event cur  = pq.top();
         pq.pop();
-        
+        cout << "event: " << cur.type << " " << cur.sender_id << " " << cur.receiver_id << " " << cur.B.id << " " << cur.time << endl;
 
+        clock = cur.time;
         network[cur.receiver_id].event_handler(pq,cur,clock);
-        clock = cur.time ;
 
 
     }
     int display = 0;
-    unordered_set<uint32_t> :: iterator itr;
     while(true){
         cout << "enter next peer : " ;
         cin >> display ;
@@ -64,8 +63,8 @@
         if(display < 0) break ;
         cout << "recvd blocks of " << display <<" :" ; 
 
-        for(itr = network[display].received_blocks.begin();itr != network[display].received_blocks.end();itr++){
-            cout << (*itr) << " ";
+        for(auto block_id: network[display].received_blocks){
+            cout << block_id << " ";
         }
 
 
