@@ -240,14 +240,21 @@ class event{
     // comparator in the main file itself
 
 };
-
+struct Compare_event {
+    bool operator()(event const& p1, event const& p2)
+    {
+       
+        return p1.time > p2.time;
+    }
+};
+/*
 bool operator<(const event& a ,const event& b){
 
 
     return a.time >  b.time ;   // gives min priority queue
     
 }
-
+*/
 
 class Node{
 
@@ -257,6 +264,7 @@ public :
     int coins ; // no of bitcoins owned so far                                      // konda : no of bitcoins should be double
     bool slow;
     int num_nodes; // no. of nodes in the network
+
 
     vector<Node*> peers;
     vector<double> latency;
@@ -339,13 +347,32 @@ public :
         return false;
     }
 
-    void propagate_block(priority_queue<event> & pq, int sid, Block &block, double at_time){
+    double network_delay(int i,int n_txn){
+
+            double c = 100; // Mbps
+
+            if(this->slow || peers[i]->slow) c = 5;
+
+            double rho = this->latency[i];  // this is in milliseconds
+            double bsize = 1+ n_txn;  // bsize KB ; bytes not bits;
+            default_random_engine generator(rand());
+            exponential_distribution<double> expo(0.096/c);
+            double d = expo(generator);
+            return (rho/1000) + (bsize*8/(c*1000))+d ;
+
+    }
+
+    void propagate_block(priority_queue<event, vector<event>, Compare_event> & pq, int sid, Block &block, double at_time){
 
         for(int i = 0;i<peers.size();i++){
 
             if(peers[i]->id != sid){
                 //konda :  here ideally should decide the future time based on link latency 
-                event future_event(block,this->id,peers[i]->id,at_time+10);
+
+
+                double nxt_time = network_delay(i,block.transactions.size());
+
+                event future_event(block,this->id,peers[i]->id,at_time+ nxt_time);
                 pq.push(future_event);
             }
 
@@ -361,12 +388,13 @@ public :
         return false;
     }
 
-    void propagate_transaction(priority_queue<event> & pq, int sid, Txn txn, double at_time){
+    void propagate_transaction(priority_queue<event,vector<event>,Compare_event> & pq, int sid, Txn txn, double at_time){
         for(int i = 0;i<peers.size();i++){
 
             if(peers[i]->id != sid){
                 //konda :  here ideally should decide the future time based on link latency 
-                event future_event(txn,this->id,peers[i]->id,at_time+10);
+                double nxt_time = network_delay(i,1);   // txn is 1 kiloByte
+                event future_event(txn,this->id,peers[i]->id,at_time+nxt_time);
                 pq.push(future_event);
             }
 
@@ -375,7 +403,7 @@ public :
 
 
 
-    void event_handler(priority_queue<event> & pq,event & cur,double at_time){
+    void event_handler(priority_queue<event,vector<event>,Compare_event> & pq,event & cur,double at_time){
 
        
         // konda : this function is called by the reciever

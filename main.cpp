@@ -1,6 +1,6 @@
 #include "classes.cpp"
 #include <random>
-#include<bits/stdc++.h>
+#include <bits/stdc++.h>
 
 // bool operator<(const event& a ,const event& b){
 
@@ -19,7 +19,7 @@ struct hash_pair {
     }
 };
 
-double poisson(double mean,double uni){
+double exponential(double mean,double uni){
     return -mean*log(1-uni);
 }
 
@@ -30,6 +30,9 @@ void make_graph(vector<Node> &network){
     queue<int> nodes;
     nodes.push(node);
 
+    default_random_engine generator(rand());
+    uniform_real_distribution<double> uniform(10.0,500.0);
+    double uni ;
     while(!nodes.empty()){
         node = nodes.front();
         nodes.pop();
@@ -39,11 +42,17 @@ void make_graph(vector<Node> &network){
         if(l < n){
             network[l].peers.push_back(&network[node]);
             network[node].peers.push_back(&network[l]);
+            uni = uniform(generator);
+            network[l].latency.push_back(uni);
+            network[node].latency.push_back(uni);
             nodes.push(l);
         }
         if(r < n){
             network[r].peers.push_back(&network[node]);
             network[node].peers.push_back(&network[r]);
+            uni = uniform(generator);
+            network[r].latency.push_back(uni);
+            network[node].latency.push_back(uni);
             nodes.push(r);
         }
     }
@@ -51,6 +60,7 @@ void make_graph(vector<Node> &network){
     int extra = n;
 
     unordered_set<pair<int,int>, hash_pair> edges;
+
 
     while(extra--){
         int n1 = rand() % n;
@@ -72,10 +82,14 @@ void make_graph(vector<Node> &network){
 
             network[n1].peers.push_back(&(network[n2]));
             network[n2].peers.push_back(&(network[n1]));
+            uni = uniform(generator);
+            network[n1].latency.push_back(uni);
+            network[n2].latency.push_back(uni);
         }
     }
 
 }
+
 
 
 int main(){
@@ -121,7 +135,7 @@ int main(){
 
     
     double uni = uniform(generator);
-    cout << "uniform : " <<  uni << " poisson : " << poisson(5 , uni) <<  endl;
+    
 
 
 
