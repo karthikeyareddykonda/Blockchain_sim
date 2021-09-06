@@ -1,8 +1,11 @@
 #include<bits/stdc++.h>
-
+#include <random>
+#include <time.h>
 using namespace std;
 
-#define MAX_BLOCK_SIZE 1024
+#define MAX_BLOCK_SIZE 3
+//srand(time(0));
+//default_random_engine generator2(rand());
 
 class Txn{
 
@@ -16,7 +19,10 @@ public:
     bool coinbase;
 
     Txn (int sid,int rid,double trans_amount, bool coinbase = false){
-        txn_id = rand()%INT_MAX+1;
+
+        default_random_engine generator2(rand());
+        uniform_int_distribution<int> uni(0,1000000);
+        txn_id = uni(generator2);
         cout << "Transaction created id: " << txn_id << endl;
 
         sender_id = sid;
@@ -122,7 +128,7 @@ public:
         Txn coinbase = Txn(-1, miner_id, 50, true);
         transactions.push_back(coinbase.to_string());
 
-        balances = vector<int>(num_nodes,0);
+        balances = vector<int>(num_nodes,50);
 
     }
 
@@ -220,21 +226,32 @@ class event{
 
     // constructor
 
-    // the recieving txn constructor, node should trigger check and broadcast
+    // the forwarding txn constructor, node should trigger check and broadcast
     event (Txn tn,int sid, int rid ,double at_time){
         trans = tn ;
         time = at_time ;
-        type = 0;
+        type = 3;
         sender_id = sid ;
         receiver_id = rid ;
     }
 
+    // forwarding or receive block constructor , node should trigger check and broadcast
     event (Block cur_block,int sid,int rid, double at_time){
         B = cur_block ;
         time = at_time;
         sender_id = sid ;
         receiver_id = rid ;
         type = 1;
+    }
+
+    // default constructor for generating txn and block events
+    // type 2 block create event
+    // type 4 Txn create event
+
+    event(int gen_type,int rid,double at_time){
+        type = gen_type ;
+        time = at_time;
+        receiver_id = rid ;
     }
 
     // comparator in the main file itself
@@ -282,6 +299,7 @@ public :
         slow = is_slow;
         num_nodes = n_nodes;
         genesis_block = new Block_node(genesis.id, 0, genesis.transactions, genesis.balances);
+        latest_block = genesis_block ;
     }
 
     // Method to generate new block from existing pool of transactions
@@ -305,8 +323,12 @@ public :
     }
 
     Txn generate_transaction(){
+        //cout << "generate txn called by :" << this->id << endl;
+        srand(time(0));
         int receiver = rand()%num_nodes;
+        //cout << "reached 0 " << endl;
         int amount = rand()%(latest_block->balances[id] + 1);
+        //cout << "reached " << endl;
         Txn new_txn = Txn(id, receiver, amount);
 
         return new_txn;
@@ -449,7 +471,9 @@ public :
         }
         else if(cur.type == 4){
             // generate transaction
+           // cout << "event handler trigger by : " << this->id << endl;
             Txn new_txn = generate_transaction();
+           // cout << "generated txn succesfully" << endl;
 
             propagate_transaction(pq, -1, new_txn, at_time);
 
