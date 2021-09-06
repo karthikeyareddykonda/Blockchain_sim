@@ -75,3 +75,71 @@
 
 
 //*---------------------end of broad casting test ----------/
+
+
+//--------------------------Transaction broadcast test--------------/
+
+    double txn_mean = 10;
+    vector<double> txn_times; txn_times.assign(n,0);
+    double clock = 0 ;
+    
+   
+    priority_queue<event,vector<event>,Compare_event>  pq ;
+
+    for(int i=0;i<2;i++){
+        for(int j=0;j<network.size();j++){
+            txn_times[j] = exponential(txn_mean,txn_times[j]);
+            int txn_id = rand()%INT_MAX+1;
+            event eve(4,j,txn_times[j], txn_id);
+            pq.push(eve);
+
+        }
+    }
+
+    /*
+    while(!pq.empty()){
+
+        event ev = pq.top();
+        pq.pop();
+
+        cout << " event type : " << ev.type << " responsible node : " << ev.receiver_id << " time :" << ev.time << endl;
+
+
+    }
+
+    */
+    int d = 0 ; 
+    while(!pq.empty()){
+        event ev = pq.top();
+        pq.pop();
+        if(ev.type == 4)
+        cout << " event type : " << "txn gen" << " generator node id " << ev.receiver_id << " time :" << ev.time << endl;
+        if(ev.type == 3)
+        cout << " event type : " << "txn forward" << " responsible node: " << ev.receiver_id << " txn is: " << ev.trans.to_string() << " time :" << ev.time << endl;        
+        d++;
+        network[ev.receiver_id].event_handler(pq,ev,ev.time);
+
+        if(d == 500) break;
+
+    }
+
+    cout << d << endl;
+
+    int display = 0;
+    while(true){
+        cout << "enter next peer : " ;
+        cin >> display ;
+
+        if(display < 0) break ;
+        cout << "recvd txns of " << display <<" :" ; 
+
+        for(auto txn_id: network[display].received_txn){
+            cout << txn_id << " ";
+        }
+
+
+        cout << endl;
+
+    }
+
+//------------End of transaction broadcasting test--------------------//

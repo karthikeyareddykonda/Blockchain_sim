@@ -18,11 +18,12 @@ public:
     double amount;
     bool coinbase;
 
-    Txn (int sid,int rid,double trans_amount, bool coinbase = false){
+    Txn (int id, int sid,int rid,double trans_amount, bool coinbase = false){
 
-        default_random_engine generator2(rand());
-        uniform_int_distribution<int> uni(0,1000000);
-        txn_id = uni(generator2);
+        // default_random_engine generator2(rand());
+        // uniform_int_distribution<int> uni(0,1000000);
+        // txn_id = uni(generator2);
+        txn_id = id;
         cout << "Transaction created id: " << txn_id << endl;
 
         sender_id = sid;
@@ -125,7 +126,9 @@ public:
         this->parent_id = parent_id;
 
         // Adding coinbase transaction
-        Txn coinbase = Txn(-1, miner_id, 50, true);
+        srand(new_id);
+        int txn_id = rand()%INT_MAX+1;
+        Txn coinbase = Txn(txn_id, -1, miner_id, 50, true);
         transactions.push_back(coinbase.to_string());
 
         balances = vector<int>(num_nodes,50);
@@ -184,6 +187,11 @@ public:
                 return NULL;
             }
         }
+        for(string txn_string: new_block->transactions){
+            Txn txn = Txn(txn_string);
+
+            temp_balances[txn.receiver_id] += txn.amount;
+        }
 
         // Verification successful, making a new Block_node to add in the tree
         Block_node* new_block_node = new Block_node(new_block->id, this->length+1, new_block->transactions, temp_balances);
@@ -216,10 +224,11 @@ class event{
     public :
     int type; // type of event, block recieve or txn recieve 
     double time ; // the time at which event to be happened
-    Txn trans;
-    Block B ;
+    int id; // id of transaction or block
     int sender_id;
     int receiver_id ;
+    Txn trans;
+    Block B ;
     // possible extra information regarding event, sender reciever, txn, block
     // here sender is the network sender , not the one in txn
     
@@ -227,7 +236,7 @@ class event{
     // constructor
 
     // the forwarding txn constructor, node should trigger check and broadcast
-    event (Txn tn,int sid, int rid ,double at_time){
+    event (Txn tn, int sid, int rid , double at_time){
         trans = tn ;
         time = at_time ;
         type = 3;
@@ -248,10 +257,11 @@ class event{
     // type 2 block create event
     // type 4 Txn create event
 
-    event(int gen_type,int rid,double at_time){
-        type = gen_type ;
+    event(int gen_type,int rid,double at_time, int id){
+        type = gen_type;
         time = at_time;
-        receiver_id = rid ;
+        receiver_id = rid;
+        this->id = id;
     }
 
     // comparator in the main file itself
@@ -292,6 +302,7 @@ public :
     Block_node* latest_block; // last block of the current longest chain
 
     unordered_set<int> received_blocks;
+    unordered_set<int> received_txn;
 
     Node (int new_id, bool is_slow, Block genesis, int n_nodes, int bcoin = 0){
         id = new_id;
@@ -299,7 +310,7 @@ public :
         slow = is_slow;
         num_nodes = n_nodes;
         genesis_block = new Block_node(genesis.id, 0, genesis.transactions, genesis.balances);
-        latest_block = genesis_block ;
+        latest_block = genesis_block;
     }
 
     // Method to generate new block from existing pool of transactions
@@ -308,9 +319,22 @@ public :
     
         int size=1;
 
-        while(!transaction_pool.empty()){
-            Txn txn = Txn(transaction_pool.front());
-            transaction_pool.pop();
+        queue<string> temp_transaction_pool(transaction_pool);
+        queue<string> empty;
+        swap(transaction_pool, empty);
+
+        vector<int> temp_balances(latest_block->balances);
+
+        while(!temp_transaction_pool.empty()){
+            Txn txn = Txn(temp_transaction_pool.front());
+            temp_transaction_pool.pop();
+
+            if(temp_balances[txn.sender_id] < txn.amount){
+                transaction_pool.push(txn.to_string());
+                continue;
+            }
+
+            temp_balances[txn.sender_id] -= txn.amount;
             size+=1;
             new_block.transactions.push_back(txn.to_string());
 
@@ -319,17 +343,31 @@ public :
             }
         }
 
+        while(!temp_transaction_pool.empty()){
+            transaction_pool.push(temp_transaction_pool.front());
+            temp_transaction_pool.pop();
+        }
+
+        for(string txn_string: new_block.transactions){
+            Txn txn = Txn(txn_string);
+            temp_balances[txn.receiver_id] += txn.amount;
+        }
+
+        new_block.balances = temp_balances;
+
         return new_block;
     }
 
-    Txn generate_transaction(){
+    Txn generate_transaction(int txn_id){
         //cout << "generate txn called by :" << this->id << endl;
-        srand(time(0));
+        srand(txn_id);
         int receiver = rand()%num_nodes;
         //cout << "reached 0 " << endl;
         int amount = rand()%(latest_block->balances[id] + 1);
         //cout << "reached " << endl;
-        Txn new_txn = Txn(id, receiver, amount);
+        Txn new_txn = Txn(txn_id, id, receiver, amount);
+
+        received_txn.insert(txn_id);
 
         return new_txn;
     }
@@ -341,9 +379,9 @@ public :
     }
 
     //Recieve block returns a bool representing success or failure
-    bool receive_block(Block &new_block){
+    int receive_block(Block &new_block){
         if(received_blocks.find(new_block.id) != received_blocks.end()){
-            return true;
+            return 1;
         }
         else{
             received_blocks.insert(new_block.id);
@@ -352,7 +390,7 @@ public :
         Block_node* parent_node = genesis_block->find(new_block.parent_id);
         if(parent_node == NULL){
             cout << "BLOCK WITH PARENT ID DOES'NT EXIST\n";
-            return false;
+            return -1;
         }
 
         // Verification in add_child
@@ -364,9 +402,9 @@ public :
                 latest_block = new_block_node;
             }
 
-            return true;
+            return 0;
         }
-        return false;
+        return -1;
     }
 
     double network_delay(int i,int n_txn){
@@ -402,12 +440,19 @@ public :
 
     }
 
-    bool receive_transaction(Txn txn){
+    int receive_transaction(Txn txn){
+        if(received_txn.find(txn.txn_id) != received_txn.end()){
+            return 1;
+        }
+        else{
+            received_txn.insert(txn.txn_id);
+        }
+        
         if(latest_block->balances[txn.sender_id] >= txn.amount){
             transaction_pool.push(txn.to_string());
-            return true;
+            return 0;
         }
-        return false;
+        return -1;
     }
 
     void propagate_transaction(priority_queue<event,vector<event>,Compare_event> & pq, int sid, Txn txn, double at_time){
@@ -444,12 +489,12 @@ public :
 
         if (cur.type == 1){
             //receive block event
-
-            if(receive_block(cur.B)){
+            int ret = receive_block(cur.B);
+            if(ret == 0){
                 //Forwarding to peers after receiving
                 propagate_block(pq, cur.sender_id, cur.B, at_time);
             }
-            else{
+            else if(ret == -1){
                 cout << "ERROR: faulty block, Message by Node number: " << this->id << endl;
             }
         }
@@ -461,18 +506,20 @@ public :
         }
         else if(cur.type == 3){
             //Transaction forwarding
-
-            if(receive_transaction(cur.trans)){
+            int ret = receive_transaction(cur.trans);
+            if(ret == 0){
                 propagate_transaction(pq, cur.sender_id,cur.trans, at_time);
             }
-            else{
+            else if(ret == -1){
                 cout << "Faulty transaction: " << cur.trans.to_string() << " Message by Node number: " << this->id << endl; 
             }
         }
         else if(cur.type == 4){
             // generate transaction
            // cout << "event handler trigger by : " << this->id << endl;
-            Txn new_txn = generate_transaction();
+        //    srand(at_time);
+        //    int txn_id = rand()%INT_MAX+1;
+            Txn new_txn = generate_transaction(cur.id);
            // cout << "generated txn succesfully" << endl;
 
             propagate_transaction(pq, -1, new_txn, at_time);
