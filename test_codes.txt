@@ -3,7 +3,7 @@
 /*
     event x(0,0.5) , y(1,0.1), z(2,1.5);
 
-    priority_queue<event> pq ;
+    priority_queue<event> pq;
 
     pq.push(x);  pq.push(y); pq.push(z);
 
@@ -35,11 +35,11 @@
 
 //*------------- broadcasting test ----- //
 
-    double clock = 0 ;
+    double clock = 0;
 
     Block B(-1,4);
     Block B2(-1,8);
-    priority_queue<event> pq ;
+    priority_queue<event> pq;
 
     event first(B,-1,4,clock),ev2(B2,-1,8,clock+60);
     pq.push(first);
@@ -58,11 +58,11 @@
     }
     int display = 0;
     while(true){
-        cout << "enter next peer : " ;
-        cin >> display ;
+        cout << "enter next peer : ";
+        cin >> display;
 
-        if(display < 0) break ;
-        cout << "recvd blocks of " << display <<" :" ; 
+        if(display < 0) break;
+        cout << "recvd blocks of " << display <<" :"; 
 
         for(auto block_id: network[display].received_blocks){
             cout << block_id << " ";
@@ -81,10 +81,10 @@
 
     double txn_mean = 10;
     vector<double> txn_times; txn_times.assign(n,0);
-    double clock = 0 ;
+    double clock = 0;
     
    
-    priority_queue<event,vector<event>,Compare_event>  pq ;
+    priority_queue<event,vector<event>,Compare_event>  pq;
 
     for(int i=0;i<2;i++){
         for(int j=0;j<network.size();j++){
@@ -108,7 +108,7 @@
     }
 
     */
-    int d = 0 ; 
+    int d = 0; 
     while(!pq.empty()){
         event ev = pq.top();
         pq.pop();
@@ -127,11 +127,11 @@
 
     int display = 0;
     while(true){
-        cout << "enter next peer : " ;
-        cin >> display ;
+        cout << "enter next peer : ";
+        cin >> display;
 
-        if(display < 0) break ;
-        cout << "recvd txns of " << display <<" :" ; 
+        if(display < 0) break;
+        cout << "recvd txns of " << display <<" :"; 
 
         for(auto txn_id: network[display].received_txn){
             cout << txn_id << " ";
@@ -143,3 +143,90 @@
     }
 
 //------------End of transaction broadcasting test--------------------//
+
+
+//-----------Start of block generation and broadcasting test----------------------//
+
+double txn_mean = 10;
+double block_gen_mean = 30;
+vector<double> txn_times; txn_times.assign(n,0);
+double clock = 0;
+
+
+
+for(int i=0;i<2;i++){
+    for(int j=0;j<network.size();j++){
+        //generating transaction
+        txn_times[j] = exponential(txn_mean,txn_times[j]);
+        int txn_id = rand()%INT_MAX+1;
+        event eve(4,j,txn_times[j], txn_id);
+        pq.push(eve);
+
+        // if(i%2 == 0){
+        //     //generating block
+        //     double T_k = exponential(block_gen_mean,0);
+        //     event ev(2, j, T_k);
+        //     pq.push(ev);
+        // }
+    }
+}
+
+/*
+while(!pq.empty()){
+
+    event ev = pq.top();
+    pq.pop();
+
+    cout << " event type : " << ev.type << " responsible node : " << ev.receiver_id << " time :" << ev.time << endl;
+
+
+}
+
+*/
+int d = 0; 
+while(!pq.empty()){
+    event ev = pq.top();
+    pq.pop();
+    if(ev.type == 4)
+    cout << " event type : " << "txn gen" << " generator node id " << ev.receiver_id << " time :" << ev.time << endl;
+    if(ev.type == 3)
+    cout << " event type : " << "txn forward" << " responsible node: " << ev.receiver_id << " txn is: " << ev.trans.to_string() << " time :" << ev.time << endl;    
+
+    if(ev.type == 2)
+    cout << " event type : " << "block gen" << " generator node id " << ev.receiver_id << " time :" << ev.time << endl;
+    if(ev.type == 1)
+    cout << " event type : " << "block forward" << " responsible node: " << ev.receiver_id << " block id is: " << ev.B.id << " time :" << ev.time << endl;    
+
+    d++;
+    network[ev.receiver_id].event_handler(pq,ev,ev.time);
+
+    // if(d == 60) break;
+
+}
+
+cout << d << endl;
+
+int display = 0;
+while(true){
+    cout << "enter next peer : ";
+    cin >> display;
+
+    if(display < 0) break;
+    cout << "recvd txns of " << display <<" :"; 
+
+    for(auto txn_id: network[display].received_txn){
+        cout << txn_id << " ";
+    }
+    cout << endl;
+
+    cout << "recvd blocks of " << display << " : ";
+
+    for(auto block_id: network[display].received_blocks){
+        cout << block_id << " ";
+    }
+
+    cout << endl;
+
+}
+
+//----------------Start of block generation and broadcasting test------------------//

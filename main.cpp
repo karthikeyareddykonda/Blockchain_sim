@@ -5,7 +5,7 @@
 // bool operator<(const event& a ,const event& b){
 
 
-//     return a.time >  b.time ;   // gives min priority queue
+//     return a.time >  b.time;   // gives min priority queue
     
 // }
 
@@ -19,9 +19,12 @@ struct hash_pair {
     }
 };
 
-double exponential(double mean,double uni){
-    return -mean*log(1-uni);
-}
+// double exponential(double mean,double at_time){
+//     default_random_engine generator(rand());
+//     exponential_distribution<double> expo(1/mean);
+//     double d = at_time + expo(generator);
+//     return d;
+// }
 
 void make_graph(vector<Node> &network){
     int n = network.size();
@@ -32,7 +35,7 @@ void make_graph(vector<Node> &network){
 
     default_random_engine generator(rand());
     uniform_real_distribution<double> uniform(10.0,500.0);
-    double uni ;
+    double uni;
     while(!nodes.empty()){
         node = nodes.front();
         nodes.pop();
@@ -45,6 +48,7 @@ void make_graph(vector<Node> &network){
             uni = uniform(generator);
             network[l].latency.push_back(uni);
             network[node].latency.push_back(uni);
+            cout << uni << endl;
             nodes.push(l);
         }
         if(r < n){
@@ -53,11 +57,12 @@ void make_graph(vector<Node> &network){
             uni = uniform(generator);
             network[r].latency.push_back(uni);
             network[node].latency.push_back(uni);
+            cout << uni << endl;
             nodes.push(r);
         }
     }
 
-    int extra = n;
+    int extra = 0;
 
     unordered_set<pair<int,int>, hash_pair> edges;
 
@@ -97,7 +102,7 @@ int main(){
     //cout << "okay" << endl;
 
 
-    int n = 10; 
+    int n = 5; 
     float z = 50;
 
     int num_slow = 10*z/100;
@@ -110,8 +115,10 @@ int main(){
 
     vector<Node> network;
     Block genesis = Block(-1,-1,n);
+    priority_queue<event,vector<event>,Compare_event>  pq;
+    
     for(int i=0;i<n;i++){
-        network.push_back(Node(i, is_slow[i], genesis, n));
+        network.push_back(Node(i, is_slow[i], genesis, n, pq));
     }
 
     make_graph(network);

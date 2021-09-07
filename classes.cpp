@@ -7,6 +7,13 @@ using namespace std;
 //srand(time(0));
 //default_random_engine generator2(rand());
 
+double exponential(double mean,double at_time){
+    default_random_engine generator(rand());
+    exponential_distribution<double> expo(1/mean);
+    double d = at_time + expo(generator);
+    return d;
+}
+
 class Txn{
 
 public:
@@ -138,7 +145,7 @@ public:
     // default constructor
 
     Block(){
-        parent_id = -1 ;
+        parent_id = -1;
         id = 0;
     }
 
@@ -207,7 +214,7 @@ public:
         else{
             Block_node* result = NULL;
             for(Block_node* block: children){
-                result = block->find(id);
+                result = block->find(block_id);
 
                 if(result != NULL) return result;
             }
@@ -223,12 +230,12 @@ class event{
 
     public :
     int type; // type of event, block recieve or txn recieve 
-    double time ; // the time at which event to be happened
+    double time; // the time at which event to be happened
     int id; // id of transaction or block
     int sender_id;
-    int receiver_id ;
+    int receiver_id;
     Txn trans;
-    Block B ;
+    Block B;
     // possible extra information regarding event, sender reciever, txn, block
     // here sender is the network sender , not the one in txn
     
@@ -237,19 +244,19 @@ class event{
 
     // the forwarding txn constructor, node should trigger check and broadcast
     event (Txn tn, int sid, int rid , double at_time){
-        trans = tn ;
-        time = at_time ;
+        trans = tn;
+        time = at_time;
         type = 3;
-        sender_id = sid ;
-        receiver_id = rid ;
+        sender_id = sid;
+        receiver_id = rid;
     }
 
     // forwarding or receive block constructor , node should trigger check and broadcast
     event (Block cur_block,int sid,int rid, double at_time){
-        B = cur_block ;
+        B = cur_block;
         time = at_time;
-        sender_id = sid ;
-        receiver_id = rid ;
+        sender_id = sid;
+        receiver_id = rid;
         type = 1;
     }
 
@@ -257,7 +264,7 @@ class event{
     // type 2 block create event
     // type 4 Txn create event
 
-    event(int gen_type,int rid,double at_time, int id){
+    event(int gen_type,int rid,double at_time, int id = 0){
         type = gen_type;
         time = at_time;
         receiver_id = rid;
@@ -278,7 +285,7 @@ struct Compare_event {
 bool operator<(const event& a ,const event& b){
 
 
-    return a.time >  b.time ;   // gives min priority queue
+    return a.time >  b.time;   // gives min priority queue
     
 }
 */
@@ -288,9 +295,11 @@ class Node{
 public :
 
     int id;
-    int coins ; // no of bitcoins owned so far                                      // konda : no of bitcoins should be double
+    int coins; // no of bitcoins owned so far                                      // konda : no of bitcoins should be double
     bool slow;
     int num_nodes; // no. of nodes in the network
+    double next_block_time;
+    bool generated; // Added temporarily to ensure each node generates at max one block.
 
 
     vector<Node*> peers;
@@ -304,13 +313,20 @@ public :
     unordered_set<int> received_blocks;
     unordered_set<int> received_txn;
 
-    Node (int new_id, bool is_slow, Block genesis, int n_nodes, int bcoin = 0){
+    Node (int new_id, bool is_slow, Block genesis, int n_nodes, priority_queue<event, vector<event>, Compare_event> & pq, int bcoin = 0){
         id = new_id;
         coins = bcoin;
         slow = is_slow;
         num_nodes = n_nodes;
+        generated = false;
+
         genesis_block = new Block_node(genesis.id, 0, genesis.transactions, genesis.balances);
         latest_block = genesis_block;
+        
+        next_block_time  = exponential(1000, 0);
+        event ev(2,id,next_block_time);
+        pq.push(ev);
+
     }
 
     // Method to generate new block from existing pool of transactions
@@ -355,6 +371,12 @@ public :
 
         new_block.balances = temp_balances;
 
+        Block_node* new_block_node = latest_block->add_child(&new_block);
+
+        latest_block = new_block_node;
+
+        received_blocks.insert(new_block.id);
+
         return new_block;
     }
 
@@ -379,7 +401,7 @@ public :
     }
 
     //Recieve block returns a bool representing success or failure
-    int receive_block(Block &new_block){
+    int receive_block(priority_queue<event, vector<event>, Compare_event> & pq, Block &new_block, double at_time){
         if(received_blocks.find(new_block.id) != received_blocks.end()){
             return 1;
         }
@@ -389,7 +411,7 @@ public :
 
         Block_node* parent_node = genesis_block->find(new_block.parent_id);
         if(parent_node == NULL){
-            cout << "BLOCK WITH PARENT ID DOES'NT EXIST\n";
+            cout << "BLOCK: " << new_block.id << " WITH PARENT ID: " << new_block.parent_id << " DOES'NT EXIST in Node: " << id << "\n";
             return -1;
         }
 
@@ -400,6 +422,11 @@ public :
             // we replace the latest block
             if(new_block_node->length > latest_block->length){
                 latest_block = new_block_node;
+                if(!generated){
+                    next_block_time  = exponential(1000, at_time);
+                    event ev(2,id,next_block_time);
+                    pq.push(ev);
+                }
             }
 
             return 0;
@@ -414,11 +441,11 @@ public :
             if(this->slow || peers[i]->slow) c = 5;
 
             double rho = this->latency[i];  // this is in milliseconds
-            double bsize = 1+ n_txn;  // bsize KB ; bytes not bits;
+            double bsize = 1+ n_txn;  // bsize KB; bytes not bits;
             default_random_engine generator(rand());
             exponential_distribution<double> expo(0.096/c);
             double d = expo(generator);
-            return (rho/1000) + (bsize*8/(c*1000))+d ;
+            return (rho/1000) + (bsize*8/(c*1000))+d;
 
     }
 
@@ -431,8 +458,7 @@ public :
 
 
                 double nxt_time = network_delay(i,block.transactions.size());
-
-                event future_event(block,this->id,peers[i]->id,at_time+ nxt_time);
+                event future_event(block,this->id,peers[i]->id,at_time + nxt_time);
                 pq.push(future_event);
             }
 
@@ -489,18 +515,25 @@ public :
 
         if (cur.type == 1){
             //receive block event
-            int ret = receive_block(cur.B);
+            int ret = receive_block(pq, cur.B, at_time);
             if(ret == 0){
                 //Forwarding to peers after receiving
                 propagate_block(pq, cur.sender_id, cur.B, at_time);
             }
             else if(ret == -1){
-                cout << "ERROR: faulty block, Message by Node number: " << this->id << endl;
+                cout << "ERROR: faulty block: " << cur.B.id << " Message by Node number: " << this->id << endl;
             }
         }
         else if(cur.type == 2){
             //generate block event
+            if(at_time != next_block_time || generated) return;
+
             Block new_block = generate_block();
+            generated = true;
+
+            next_block_time  = exponential(1000, at_time);
+            event ev(2,id,next_block_time);
+            pq.push(ev);
 
             propagate_block(pq, -1, new_block, at_time);
         }
