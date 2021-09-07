@@ -121,8 +121,7 @@ public:
     int id;
     int parent_id;
 
-    vector<string> transactions; 
-    vector<int> balances;
+    unordered_set<string> transactions; 
 
 
 
@@ -138,9 +137,8 @@ public:
         srand(new_id);
         int txn_id = rand()%INT_MAX+1;
         Txn coinbase = Txn(txn_id, -1, miner_id, 50, true);
-        transactions.push_back(coinbase.to_string());
+        transactions.insert(coinbase.to_string());
 
-        balances = vector<int>(num_nodes,50);
 
     }
 
@@ -165,45 +163,29 @@ public:
     int id;
     int length;         // distance from the genesis block_node
 
-    vector<string> transactions; 
+    unordered_set<string> transactions; 
     vector<int> balances;
     vector<Block_node*> children;
+    Block_node* parent;
 
     //TODO
     vector<int> counts;  //  to track the family tree counts , should use dfs/bfs
 
     // constructor
-    Block_node(int id, int length, vector<string> transactions, vector<int> balances){
+    Block_node(int id, int length, unordered_set<string> transactions, vector<int> balances, Block_node* parent = NULL){
         this->id = id;
         this->length = length;
         this->transactions = transactions;
         this->balances = balances;
+        this->parent = parent;
+
     }
 
     // adding of child (returns bool to indicate success)
-    Block_node* add_child(Block* new_block){
-
-        // Verifying transactions with current balances
-        vector<int> temp_balances(balances);
-
-        for(string txn_string: new_block->transactions){
-            Txn txn = Txn(txn_string);
-
-            if(txn.coinbase) continue;
-
-            temp_balances[txn.sender_id] -= txn.amount;
-            if(temp_balances[txn.sender_id] < 0){
-                return NULL;
-            }
-        }
-        for(string txn_string: new_block->transactions){
-            Txn txn = Txn(txn_string);
-
-            temp_balances[txn.receiver_id] += txn.amount;
-        }
+    Block_node* add_child(Block* new_block, vector<int> temp_balances){
 
         // Verification successful, making a new Block_node to add in the tree
-        Block_node* new_block_node = new Block_node(new_block->id, this->length+1, new_block->transactions, temp_balances);
+        Block_node* new_block_node = new Block_node(new_block->id, this->length+1, new_block->transactions, temp_balances, this);
         children.push_back(new_block_node);
 
         return new_block_node;
@@ -307,8 +289,8 @@ public :
     vector<Node*> peers;
     vector<double> latency;
 
-
-    queue<string> transaction_pool;
+    unordered_set<string> all_transactions;
+    unordered_set<string> transaction_pool;
     Block_node* genesis_block;
     Block_node* latest_block; // last block of the current longest chain
 
@@ -322,7 +304,7 @@ public :
         num_nodes = n_nodes;
         num_generated = 0;
 
-        genesis_block = new Block_node(genesis.id, 0, genesis.transactions, genesis.balances);
+        genesis_block = new Block_node(genesis.id, 0, genesis.transactions, vector<int>(n_nodes,50));
         latest_block = genesis_block;
         
         next_block_time  = exponential(BLOCK_INTERARRIVAL, 0);
@@ -337,33 +319,21 @@ public :
     
         int size=1;
 
-        queue<string> temp_transaction_pool(transaction_pool);
-        queue<string> empty;
-        swap(transaction_pool, empty);
-
+        unordered_set<string> temp_transaction_pool(transaction_pool);
+        transaction_pool.clear();
         vector<int> temp_balances(latest_block->balances);
 
-        while(!temp_transaction_pool.empty()){
-            Txn txn = Txn(temp_transaction_pool.front());
-            temp_transaction_pool.pop();
+        for(auto txn_string: temp_transaction_pool){
+            Txn txn = Txn(txn_string);
 
-            if(temp_balances[txn.sender_id] < txn.amount){
-                transaction_pool.push(txn.to_string());
+            if(temp_balances[txn.sender_id] < txn.amount || size == MAX_BLOCK_SIZE){
+                transaction_pool.insert(txn_string);
                 continue;
             }
 
             temp_balances[txn.sender_id] -= txn.amount;
             size+=1;
-            new_block.transactions.push_back(txn.to_string());
-
-            if(size == MAX_BLOCK_SIZE){
-                break;
-            }
-        }
-
-        while(!temp_transaction_pool.empty()){
-            transaction_pool.push(temp_transaction_pool.front());
-            temp_transaction_pool.pop();
+            new_block.transactions.insert(txn.to_string());
         }
 
         for(string txn_string: new_block.transactions){
@@ -371,9 +341,8 @@ public :
             temp_balances[txn.receiver_id] += txn.amount;
         }
 
-        new_block.balances = temp_balances;
 
-        Block_node* new_block_node = latest_block->add_child(&new_block);
+        Block_node* new_block_node = latest_block->add_child(&new_block, temp_balances);
 
         latest_block = new_block_node;
 
@@ -393,13 +362,10 @@ public :
 
         received_txn.insert(txn_id);
 
-        return new_txn;
-    }
+        transaction_pool.insert(new_txn.to_string());
+        all_transactions.insert(new_txn.to_string());
 
-    // broadcast function // should be loopless // should also check validity // should also return information for future events
-    // PLAN: set up recieve events for peers (based on latency etc), they will do the same when they recieve the block, every node first checks whether the block has already been "recieved" (visited in the bfs)
-    bool broadcast_block(){
-        return true;
+        return new_txn;
     }
 
     //Recieve block returns a bool representing success or failure
@@ -416,23 +382,107 @@ public :
             cout << "BLOCK: " << new_block.id << " WITH PARENT ID: " << new_block.parent_id << " DOES'NT EXIST in Node: " << id << "\n";
             return -1;
         }
+        if(parent_node->id != latest_block->id){
+            unordered_set<string> trans_till_now;
+            Block_node* node_ptr = parent_node;
 
-        // Verification in add_child
-        Block_node* new_block_node  = parent_node->add_child(&new_block);
-        if(new_block_node != NULL){
-            // If new longest chain is found (or existing chain is being extended)
-            // we replace the latest block
-            if(new_block_node->length > latest_block->length){
-                latest_block = new_block_node;
-                if(num_generated < MAX_BLOCKS_GEN){
-                    next_block_time  = exponential(BLOCK_INTERARRIVAL, at_time);
-                    event ev(2,id,next_block_time);
-                    pq.push(ev);
+            while(node_ptr != genesis_block){
+                for(string txn_string: node_ptr->transactions){
+                    Txn txn = Txn(txn_string);
+                    trans_till_now.insert(txn.to_string());
+                }
+                node_ptr = node_ptr->parent;
+            }
+
+            
+            vector<int> temp_balances(parent_node->balances);
+            for(string txn_string: new_block.transactions){
+                Txn txn = Txn(txn_string);
+                if(txn.coinbase) continue;
+                
+                if(all_transactions.find(txn_string) == all_transactions.end()){
+                    cout << "ERROR: transaction id: " << txn.txn_id << "is in block id: " << new_block.id << " with parent id: " << new_block.parent_id << " but not received by the node id: " << id << endl;
+                    cout << "transaction id: " << txn.txn_id << " in Block id: " << new_block.id << " parent id: " << new_block.parent_id << endl;
+                    return -1;
+                }
+                else if(trans_till_now.find(txn_string) != trans_till_now.end()){
+                    cout << "PREVIOUSLY USED TRANSACTION USED AGAIN" << endl;
+                    cout << "transaction id: " << txn.txn_id << " in Block id: " << new_block.id << " parent id: " << new_block.parent_id << endl;
+                    return -1;
+                }
+
+                temp_balances[txn.sender_id] -= txn.amount;
+                if(temp_balances[txn.sender_id] < 0){
+                    cout << "DOUBLE SPEND" << endl;
+                    cout << "transaction id: " << txn.txn_id << " in Block id: " << new_block.id << " parent id: " << new_block.parent_id << endl;
+                    return -1;
                 }
             }
 
-            return 0;
+            for(string txn_string: new_block.transactions){
+                Txn txn = Txn(txn_string);
+                temp_balances[txn.receiver_id] += txn.amount;
+            }
+            
+            parent_node->add_child(&new_block,temp_balances);
+
+            if(parent_node->length == latest_block->length){
+                transaction_pool.clear();
+
+                for(auto txn_string: all_transactions){
+
+                    if(trans_till_now.find(txn_string) == trans_till_now.end() && new_block.transactions.find(txn_string) == new_block.transactions.end()){
+                        transaction_pool.insert(txn_string);
+                    }
+
+                }
+            }
+            
+
         }
+        else{
+            vector<int> temp_balances(parent_node->balances);
+
+            for(string txn_string: new_block.transactions){
+                Txn txn = Txn(txn_string);
+
+                if(txn.coinbase) continue;
+
+                if(all_transactions.find(txn_string) == all_transactions.end()){
+                    cout << "ERROR: transaction id: " << txn.txn_id << "is in block id: " << new_block.id << " with parent id: " << new_block.parent_id << " but not received by the node id: " << id << endl;
+                    cout << "transaction id: " << txn.txn_id << " in Block id: " << new_block.id << " parent id: " << new_block.parent_id << endl;
+                    return -1;
+                }
+                else if(transaction_pool.find(txn.to_string()) == transaction_pool.end()){
+                    cout << "PREVIOUSLY USED TRANSACTION USED AGAIN" << endl;
+                    cout << "transaction id: " << txn.txn_id << " in Block id: " << new_block.id << " parent id: " << new_block.parent_id << endl;
+                    return -1;
+                }
+
+                temp_balances[txn.sender_id] -= txn.amount;
+                if(temp_balances[txn.sender_id] < 0){
+                    cout << "DOUBLE SPEND" << endl;
+                    cout << "transaction id: " << txn.txn_id << " in Block id: " << new_block.id << " parent id: " << new_block.parent_id << endl;
+                    return -1;
+                }
+            }
+
+            for(string txn_string: new_block.transactions){
+                Txn txn = Txn(txn_string);
+                transaction_pool.erase(txn.to_string());
+                temp_balances[txn.receiver_id] += txn.amount;
+            }
+
+            Block_node* new_block_node  = parent_node->add_child(&new_block, temp_balances);
+            latest_block = new_block_node;
+            if(num_generated < MAX_BLOCKS_GEN){
+                next_block_time  = exponential(BLOCK_INTERARRIVAL, at_time);
+                event ev(2,id,next_block_time);
+                pq.push(ev);
+            }
+
+            return 0;
+        }        
         return -1;
     }
 
@@ -477,7 +527,8 @@ public :
         }
         
         if(latest_block->balances[txn.sender_id] >= txn.amount){
-            transaction_pool.push(txn.to_string());
+            transaction_pool.insert(txn.to_string());
+            all_transactions.insert(txn.to_string());
             return 0;
         }
         return -1;
