@@ -27,10 +27,10 @@ for line in label_file.readlines():
     labels = [int(a) for a in line.split(',')]
 
 for a in labels:
-    G.add_node(a,color='blue',shape='box')
+	G.add_node(a,color='blue')
 
 for a,b in edge_list:
-    G.add_edge(b,a,color='blue')
+	G.add_edge(b,a,color='blue')
 
 G.write('test.dot')
 
