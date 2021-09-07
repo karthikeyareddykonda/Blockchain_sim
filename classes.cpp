@@ -4,6 +4,8 @@
 using namespace std;
 
 #define MAX_BLOCK_SIZE 3
+#define MAX_BLOCKS_GEN 1
+#define BLOCK_INTERARRIVAL 1000
 //srand(time(0));
 //default_random_engine generator2(rand());
 
@@ -299,7 +301,7 @@ public :
     bool slow;
     int num_nodes; // no. of nodes in the network
     double next_block_time;
-    bool generated; // Added temporarily to ensure each node generates at max one block.
+    int  num_generated; // Added temporarily to ensure each node generates at max one block.
 
 
     vector<Node*> peers;
@@ -318,12 +320,12 @@ public :
         coins = bcoin;
         slow = is_slow;
         num_nodes = n_nodes;
-        generated = false;
+        num_generated = 0;
 
         genesis_block = new Block_node(genesis.id, 0, genesis.transactions, genesis.balances);
         latest_block = genesis_block;
         
-        next_block_time  = exponential(1000, 0);
+        next_block_time  = exponential(BLOCK_INTERARRIVAL, 0);
         event ev(2,id,next_block_time);
         pq.push(ev);
 
@@ -422,8 +424,8 @@ public :
             // we replace the latest block
             if(new_block_node->length > latest_block->length){
                 latest_block = new_block_node;
-                if(!generated){
-                    next_block_time  = exponential(1000, at_time);
+                if(num_generated < MAX_BLOCKS_GEN){
+                    next_block_time  = exponential(BLOCK_INTERARRIVAL, at_time);
                     event ev(2,id,next_block_time);
                     pq.push(ev);
                 }
@@ -526,12 +528,12 @@ public :
         }
         else if(cur.type == 2){
             //generate block event
-            if(at_time != next_block_time || generated) return;
+            if(at_time != next_block_time || num_generated >= MAX_BLOCKS_GEN) return;
 
             Block new_block = generate_block();
-            generated = true;
+            num_generated++;
 
-            next_block_time  = exponential(1000, at_time);
+            next_block_time  = exponential(BLOCK_INTERARRIVAL, at_time);
             event ev(2,id,next_block_time);
             pq.push(ev);
 
